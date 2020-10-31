@@ -1,0 +1,10 @@
+Hourly US data: https://www.eia.gov/beta/electricity/gridmonitor/dashboard/electric_overview/US48/US48
+Hourly US demand: https://www.eia.gov/beta/electricity/gridmonitor/expanded-view/custom/pending/ElectricityRegionDemand-3/edit
+
+
+Demand for California (region) hourly - UTC time
+https://www.eia.gov/opendata/qb.php?category=3389936&sdid=EBA.CAL-ALL.D.H
+21:08:26 GMT+0100 (Central European Standard Time)
+Source: U.S. Energy Information Administration
+Category,Series ID: EBA.CAL-ALL.D.H megawatthours
+
