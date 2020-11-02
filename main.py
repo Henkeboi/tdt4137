@@ -56,6 +56,47 @@ def holt_winters_additive(ts, horizon):
     #plt.show()
     return forecast[1:]
 
+def holt_winters_multiplicative(ts, horizon):
+    alpha = 0.7     # 0 <= alpha <= 1
+    beta = 0.1      # 0 <= beta <= 1
+    gamma = 0.25     # 0 <= gamma <= 1
+    h = 1
+    m = 24
+    k = math.floor((h - 1.0) / float(m))
+    prev_level = 10000
+    prev_trend = 10000
+    forecast = np.full(len(ts) + horizon, math.nan)
+    seasonal_components = np.full(len(ts) + horizon, math.nan)
+
+    level_eq = lambda alpha, ts, prev_level, prev_trend, prev_season : alpha * (ts[0] - prev_season) + (1 - alpha) * (prev_level + prev_trend)
+    trend_eq = lambda beta, level, prev_level, prev_trend : beta * (level - prev_level) + (1 - beta) * prev_trend
+    season_eq = lambda gamma, ts, prev_level, prev_trend, prev_season : gamma * ts[0] / (prev_level - prev_trend) + (1 - gamma) * prev_season
+
+    forecast[1] = ts[0]
+    for i in range(2, len(ts) + 1):
+        # Calculate components
+        if i - m >= 0:
+            level = level_eq(alpha, ts[i - 1], prev_level, prev_trend, seasonal_components[i - 24]) # Add seasonality
+            seasonal_components[i - 2] = season_eq(gamma, ts[i - 1], prev_level, prev_trend, seasonal_components[i - m]) # Prev season should be i - m + 1
+        else: 
+            seasonal_components[i - 2] = 0
+            level = level_eq(alpha, ts[i - 1], prev_level, prev_trend, 0)
+        trend = trend_eq(beta, level, prev_level, prev_trend)
+
+        # Make forecasts
+        if (i - m * (k + 1) < 0):
+            forecast[i] = level + h * trend 
+        else:
+            forecast[i] = (level + h * trend) * seasonal_components[i - m * (k + 1)]
+        prev_level = level
+        prev_trend = trend
+
+    forecast[len(ts) + 1 :] = forecast[len(ts)] # Make prediction
+    #ts = np.append(ts, [math.nan] * horizon) # Make equal length
+    #data_frame = pd.DataFrame.from_dict({"Data" : ts, "Forecast" : forecast})
+    #data_frame.plot()
+    #plt.show()
+    return forecast[1:]
 
 
 def main():
@@ -67,6 +108,8 @@ def main():
 
     horizon = 1
     forecast = holt_winters_additive(copy.deepcopy(ts), horizon) 
+    print(sse(ts, forecast))
+    forecast = holt_winters_multiplicative(copy.deepcopy(ts), horizon) 
     print(sse(ts, forecast))
 
     #[rest_ts, level_ts] = level_eq(ts, alpha, horizon)
