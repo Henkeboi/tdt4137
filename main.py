@@ -6,32 +6,18 @@ import copy
 
 def sse(ts, forecast):
     assert(len(ts) == len(forecast))
-    error = 0
-    for i in range(0, len(ts)):
+    error = []
+    for i in range(100, len(ts)):
         step_error = pow(ts[i][0] - forecast[i], 2)
-        #if not math.isnan(step_error):
-        error = step_error
-    return error
-
-def level_eq(ts, alpha, horizon):
-    level_ts = np.full(len(ts) + horizon, math.nan)
-    level_ts[1] = ts[0]
-    for i in range(2, len(ts) + 1):
-        level_ts[i] = alpha * ts[i - 1] + (1 - alpha) * level_ts[i - 1]
-
-    level_ts[len(ts) + 1 :] = level_ts[len(ts)] # Make prediction
-    ts = np.append(ts, [math.nan] * horizon) # Make equal length
-
-    #data_frame = pd.DataFrame.from_dict({"Data" : ts, "Forecast" : level_ts, "Error" : ts - level_ts})
-    #data_frame.plot()
+        error.append(step_error)
+    #plt.plot(error)
     #plt.show()
-    return (ts[:-1] - level_ts[1:], level_ts[1:])
-
+    return sum(error)
 
 def holt_winters_additive(ts, horizon):
-    alpha = 0.9    # 0 <= alpha <= 1
+    alpha = 0.7    # 0 <= alpha <= 1
     beta = 0.5     # 0 <= beta <= 1
-    gamma = 0.01#1 - alpha    # 0 <= gamma <= 1 - alpha
+    gamma = 0.001 #1 - alpha    # 0 <= gamma <= 1 - alpha
     h = 1
     m = 24
     k = math.floor((h - 1.0) / float(m))
@@ -46,13 +32,16 @@ def holt_winters_additive(ts, horizon):
 
     forecast[1] = ts[0]
     for i in range(2, len(ts) + 1):
-        level = level_eq(alpha, ts[i - 1], prev_level, prev_trend, 0) # Add seasonality
-        trend = trend_eq(beta, level, prev_level, prev_trend)
+        # Calculate components
         if i - m >= 0:
+            level = level_eq(alpha, ts[i - 1], prev_level, prev_trend, seasonal_components[i - 24]) # Add seasonality
             seasonal_components[i - 2] = season_eq(gamma, ts[i - 1], prev_level, prev_trend, seasonal_components[i - m]) # Prev season should be i - m + 1
-        else:
+        else: 
             seasonal_components[i - 2] = 0
+            level = level_eq(alpha, ts[i - 1], prev_level, prev_trend, 0)
+        trend = trend_eq(beta, level, prev_level, prev_trend)
 
+        # Make forecasts
         if (i - m * (k + 1) < 0):
             forecast[i] = level + h * trend 
         else:
@@ -61,11 +50,13 @@ def holt_winters_additive(ts, horizon):
         prev_trend = trend
 
     forecast[len(ts) + 1 :] = forecast[len(ts)] # Make prediction
-    ts = np.append(ts, [math.nan] * horizon) # Make equal length
-    data_frame = pd.DataFrame.from_dict({"Data" : ts, "Forecast" : forecast, "Error" : ts - forecast})
-    data_frame.plot()
-    plt.show()
+    #ts = np.append(ts, [math.nan] * horizon) # Make equal length
+    #data_frame = pd.DataFrame.from_dict({"Data" : ts, "Forecast" : forecast})
+    #data_frame.plot()
+    #plt.show()
     return forecast[1:]
+
+
 
 def main():
     data = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, infer_datetime_format=True, parse_dates=[0], index_col=[0])
