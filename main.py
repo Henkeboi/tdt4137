@@ -8,7 +8,7 @@ def sse(ts, forecast):
     assert(len(ts) == len(forecast))
     error = []
     for i in range(100, len(ts)):
-        step_error = pow(ts[i][0] - forecast[i], 2)
+        step_error = pow(ts[i] - forecast[i], 2)
         error.append(step_error)
     #plt.plot(error)
     #plt.show()
@@ -113,10 +113,10 @@ def moving_average(ts, index, index_range):
     return avg / num_elements
 
 def holt_winters_multiplicative_seasonality_extended(ts):
-    alpha = 0.77             # 0 <= alpha <= 1
-    beta = 0.02             # 0 <= beta <= 1
-    gamma_day = 0.99        # 0 <= gamma_day <= 1
-    gamma_week = 0.99
+    alpha = 0.999             # 0 <= alpha <= 1
+    beta = 0.0001             # 0 <= beta <= 1
+    gamma_day = 0.9        # 0 <= gamma_day <= 1
+    gamma_week = 0.7
     k = 1
     day_period_length = 24
     week_period_length = 7 * 24
@@ -137,11 +137,12 @@ def holt_winters_multiplicative_seasonality_extended(ts):
         if i > 3 * week_period_length:
             M_0 = day_seasonality[i - day_period_length] * week_seasonality[i - week_period_length]
             level = level_eq(alpha, ts[i], M_0, level_prev, trend_prev)
+            trend = trend_eq(beta, level, level_prev, trend_prev)
             day_seasonality[i] = seasonality_eq(gamma_day, ts[i], day_seasonality[i - day_period_length], level, M_0)
             week_seasonality[i] = seasonality_eq(gamma_week, ts[i], week_seasonality[i - week_period_length], level, M_0)
         elif i > 3 * day_period_length:
-            day_seasonality[i] = \
-                (ts[i] / moving_average(ts, i, day_period_length) + ts[i + day_period_length] / moving_average(ts, i + day_period_length, day_period_length)) / 2
+            M_0 = day_seasonality[i - day_period_length] 
+            day_seasonality[i] = seasonality_eq(gamma_day, ts[i], day_seasonality[i - day_period_length], level, M_0)
             week_seasonality[i] = \
                 (ts[i] / moving_average(ts, i, week_period_length) + ts[i + week_period_length] / moving_average(ts, i + week_period_length, week_period_length)) / 2
         else:
@@ -166,11 +167,16 @@ def holt_winters_multiplicative_seasonality_extended(ts):
         level_prev = level
         trend_prev = trend
 
-    ts = np.append(ts, [math.nan] * k) # Make equal length
-    data_frame = pd.DataFrame.from_dict({"Data" : ts, "Forecast" : forecast})
-    data_frame.plot()
-    plt.show()
-    return forecast[:-1]
+    plot = True
+    if plot == True:
+        ts = np.append(ts, [math.nan] * k) # Make equal length
+        ts = ts[3 * week_period_length :]
+        forecast = forecast[3 * week_period_length :]
+        data_frame = pd.DataFrame.from_dict({"Data" : ts, "Forecast" : forecast})
+        data_frame.plot()
+        plt.show()
+        return (forecast[:-1], ts[:-1])
+    return (forecast[:-1], ts)
 
 def main():
     data = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, infer_datetime_format=True, parse_dates=[0], index_col=[0])
@@ -183,7 +189,7 @@ def main():
     #print(sse(ts, forecast))
     #forecast = holt_winters_multiplicative(copy.deepcopy(ts), 1) 
     #print(sse(ts, forecast))
-    forecast = holt_winters_multiplicative_seasonality_extended(copy.deepcopy(ts)) 
+    (forecast, ts) = holt_winters_multiplicative_seasonality_extended(copy.deepcopy(ts)) 
     print(sse(ts, forecast))
 
     #[rest_ts, level_ts] = level_eq(ts, alpha, horizon)
