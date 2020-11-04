@@ -99,6 +99,19 @@ def holt_winters_multiplicative(ts, horizon):
     #plt.show()
     return forecast[1:]
 
+
+def moving_average(ts, index, index_range):
+    avg = 0
+    i = index - index_range
+    if i < 0:
+        i = 0
+    num_elements = 0
+    while i <= index + index_range:
+        avg = avg + ts[i]
+        i = i + 1
+        num_elements = num_elements + 1
+    return avg / num_elements
+
 def holt_winters_multiplicative_seasonality_extended(ts):
     alpha = 0.77             # 0 <= alpha <= 1
     beta = 0.02             # 0 <= beta <= 1
@@ -108,56 +121,55 @@ def holt_winters_multiplicative_seasonality_extended(ts):
     day_period_length = 24
     week_period_length = 7 * 24
     forecast = np.full(len(ts) + k, math.nan)
-    day_seasonality = np.full(len(ts) - day_period_length, math.nan)
-    week_seasonality = np.full(len(ts) - week_period_length, math.nan)
+    day_seasonality = np.full(len(ts), math.nan)
+    week_seasonality = np.full(len(ts), math.nan)
 
     level_eq = lambda alpha, observation, M_0, level_prev, trend_prev : alpha * observation / M_0 + (1 - alpha) * (level_prev + trend_prev)
     trend_eq = lambda beta, level, level_prev, trend_prev : beta * (level - level_prev) + (1 - beta) * trend_prev
-
     seasonality_eq = lambda gamma, observation, seasonality_prev, level, M_0 : \
-            gamma * observation * seasonality_prev / (level + M_0) + (1 - gamma) * seasonality_prev
+            gamma * observation * seasonality_prev / (level * M_0) + (1 - gamma) * seasonality_prev
 
-    level_prev = 10e5 # todo: Correct the initial value
-    trend_prev = 10  # todo: Correct the initial value
+    level_initial = np.average(ts[0 : 2 * day_period_length]) 
+    trend_initial = abs(np.average(ts[0 : day_period_length]) - np.average(ts[day_period_length : 2 * day_period_length])) / day_period_length
+
     for i in range(0, len(ts)):
         # Update smoothing equations 
-        if i > week_period_length * 200:
-            M_0 = day_seasonality[i - day_period_length - 1] #* week_seasonality[i - week_period_length - 1]
-            #level = level_eq(alpha, ts[i], M_0, level_prev, trend_prev) 
-            level = level_eq(alpha, ts[i], 1, level_prev, trend_prev) 
-            day_seasonality[i - day_period_length] = seasonality_eq(gamma_day, ts[i], day_seasonality[i - day_period_length - 1], level, M_0)
-            week_seasonality[i - week_period_length] = 1 #seasonality_eq(gamma_week, ts[i], week_seasonality[i - week_period_length - 1], level, M_0)
-            #print(week_seasonality[i - week_period_length])
-            #print(day_seasonality[i - day_period_length])
-        elif i > day_period_length * 200:
-            M_0 = day_seasonality[i - day_period_length - 1]
-            #level = level_eq(alpha, ts[i], M_0, level_prev, trend_prev) # Todo: Using 1 as day seasonality init val
-            level = level_eq(alpha, ts[i], 1, level_prev, trend_prev) # Todo: Using 1 as day seasonality init val
-            # Todo: Calculate init val
-            day_seasonality[i - day_period_length] = seasonality_eq(gamma_day, ts[i], day_seasonality[i - day_period_length - 1], level, M_0)
-            week_seasonality[i - week_period_length] = 1
+        if i > 3 * week_period_length:
+            M_0 = day_seasonality[i - day_period_length] * week_seasonality[i - week_period_length]
+            level = level_eq(alpha, ts[i], M_0, level_prev, trend_prev)
+            day_seasonality[i] = seasonality_eq(gamma_day, ts[i], day_seasonality[i - day_period_length], level, M_0)
+            week_seasonality[i] = seasonality_eq(gamma_week, ts[i], week_seasonality[i - week_period_length], level, M_0)
+        elif i > 3 * day_period_length:
+            day_seasonality[i] = \
+                (ts[i] / moving_average(ts, i, day_period_length) + ts[i + day_period_length] / moving_average(ts, i + day_period_length, day_period_length)) / 2
+            week_seasonality[i] = \
+                (ts[i] / moving_average(ts, i, week_period_length) + ts[i + week_period_length] / moving_average(ts, i + week_period_length, week_period_length)) / 2
         else:
-            level = level_eq(alpha, ts[i], 1, level_prev, trend_prev) # Todo: Using 1 as day seasonality init val
-            day_seasonality[i - day_period_length] = seasonality_eq(gamma_day, ts[i], 1, level, 1)
-            week_seasonality[i - week_period_length] = 1
-            trend = trend_eq(beta, level, level_prev, trend_prev)
+            level = level_initial
+            trend = trend_initial
+            prev_seasonality = 1
+            day_seasonality[i] = \
+                (ts[i] / moving_average(ts, i, day_period_length) + ts[i + day_period_length] / moving_average(ts, i + day_period_length, day_period_length)) / 2
+            week_seasonality[i] = \
+                (ts[i] / moving_average(ts, i, week_period_length) + ts[i + week_period_length] / moving_average(ts, i + week_period_length, week_period_length)) / 2
 
         # Smooth 
-        if i > week_period_length: 
-            forecast[i] = (level + trend) * day_seasonality[i - day_period_length - 1] #* week_seasonality[i - week_period_length - 1]
-        elif i > day_period_length:
-            forecast[i] = (level + trend) * day_seasonality[i - day_period_length - 1]
+        if i > 3 *  week_period_length: 
+            M_0 = day_seasonality[i - day_period_length] * week_seasonality[i - week_period_length]
+            forecast[i] = (level + trend) * M_0
+        elif i > 3 * day_period_length:
+            forecast[i] = ts[i]
         else:
-            forecast[i] = level + trend
+            forecast[i] = ts[i]
         
         # Store values    
         level_prev = level
         trend_prev = trend
 
-    #ts = np.append(ts, [math.nan] * k) # Make equal length
-    #data_frame = pd.DataFrame.from_dict({"Data" : ts, "Forecast" : forecast})
-    #data_frame.plot()
-    #plt.show()
+    ts = np.append(ts, [math.nan] * k) # Make equal length
+    data_frame = pd.DataFrame.from_dict({"Data" : ts, "Forecast" : forecast})
+    data_frame.plot()
+    plt.show()
     return forecast[:-1]
 
 def main():
