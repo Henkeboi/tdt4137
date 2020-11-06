@@ -112,7 +112,7 @@ class HoltWinters:
 
         initial_guess = np.array([alpha, beta, gamma_day, gamma_week])
         bound_on_variables = ((0, 1), (0, 1), (0, 1), (0, 1))
-        tolerance = 0.1
+        tolerance = 0.5
         self.is_training = True
         variables_optimized = minimize(self.holt_winters_multiplicative_seasonality_extended, initial_guess, bounds=bound_on_variables, tol=tolerance).x
         self.is_training = False
@@ -180,7 +180,7 @@ class HoltWinters:
 
         initial_guess = np.array([alpha, beta, gamma])
         bound_on_variables = ((0, 1), (0, 1), (0, 1))
-        tolerance = 0.1
+        tolerance = 0.5
 
         self.is_training = True
         variables_optimized = minimize(self.holt_winters_multiplicative, initial_guess, bounds=bound_on_variables, tol=tolerance).x
@@ -249,7 +249,7 @@ class HoltWinters:
 
         initial_guess = np.array([alpha, beta, gamma])
         bound_on_variables = ((0, 1), (0, 1), (0, 1 - alpha))
-        tolerance = 0.1
+        tolerance = 0.5
 
         self.is_training = True
         variables_optimized = minimize(self.holt_winters_additive, initial_guess, bounds=bound_on_variables, tol=tolerance).x

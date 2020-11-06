@@ -32,12 +32,12 @@ def main():
     print(sse(ts[-horizon:], forecast_multiplicative))
     print(sse(ts[-horizon:], forecast_season_extended))
 
-    #x = np.arange(0, horizon, 1)
-    #plt.plot(x, ts[-horizon:], 'r')
-    #plt.plot(x, forecast_additive, 'r')
-    #plt.plot(x, forecast_multiplicative, 'r')
-    #plt.plot(x, forecast_season_extended, 'y')
-    #plt.show()
+    x = np.arange(0, horizon, 1)
+    plt.plot(x, ts[-horizon:], 'r')
+    plt.plot(x, forecast_additive, 'g')
+    plt.plot(x, forecast_multiplicative, 'b')
+    plt.plot(x, forecast_season_extended, 'y')
+    plt.show()
 
 if __name__ == '__main__':
     main()
