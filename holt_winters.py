@@ -105,14 +105,14 @@ class HoltWinters:
             return self.sse(forecast)
 
     def holt_winters_multiplicative_seasonality_extended_predict(self):
-        alpha = 0.9           # 0 <= alpha <= 1
+        alpha = 0.9             # 0 <= alpha <= 1
         beta = 0.0001           # 0 <= beta <= 1
         gamma_day = 0.9         # 0 <= gamma_day <= 1
         gamma_week = 0.7        # 0 <= gamma_week <= 1
 
         initial_guess = np.array([alpha, beta, gamma_day, gamma_week])
         bound_on_variables = ((0, 1), (0, 1), (0, 1), (0, 1))
-        tolerance = 0.5
+        tolerance = 0.3
         self.is_training = True
         variables_optimized = minimize(self.holt_winters_multiplicative_seasonality_extended, initial_guess, bounds=bound_on_variables, tol=tolerance).x
         self.is_training = False
