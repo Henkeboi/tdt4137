@@ -35,7 +35,7 @@ class HoltWinters:
             num_elements = num_elements + 1
         return avg / num_elements
 
-    def holt_winters_multiplicative_week_extended(self, x):
+    def holt_winters_multiplicative_week_extended(self, x, return_error=True):
         alpha = x[0]
         beta = x[1]
         gamma_day = x[2]
@@ -106,7 +106,10 @@ class HoltWinters:
                 week_seasonality[i] = seasonality_eq(gamma_week, forecast[i - len(self.ts)], week_seasonality[i - week_period_length], level, M_0)
             return forecast
         else:
-            return self.sse(forecast)
+            if return_error:
+                return self.sse(forecast)
+            else:
+                return forecast
 
     def holt_winters_multiplicative_week_extended_predict(self, do_training):
         alpha = 0.9             # 0 <= alpha <= 1
@@ -118,13 +121,18 @@ class HoltWinters:
         bound_on_variables = ((0, 1), (0, 1), (0, 1), (0, 1))
         tolerance = 0.3
         variables_optimized = initial_guess
+        self.is_training = True
         if do_training:
-            self.is_training = True
             variables_optimized = minimize(self.holt_winters_multiplicative_week_extended, initial_guess, bounds=bound_on_variables, tol=tolerance).x
-        self.is_training = False
-        return self.holt_winters_multiplicative_week_extended(variables_optimized)
+        residuals = np.array([])
+        smoothed_series = self.holt_winters_multiplicative_week_extended(variables_optimized, False)
+        for i in range(0, len(self.ts)):
+            residuals = np.append(residuals, self.ts[i][0] - smoothed_series[i])
 
-    def holt_winters_multiplicative_year_extended(self, x):
+        self.is_training = False
+        return self.holt_winters_multiplicative_week_extended(variables_optimized), residuals
+
+    def holt_winters_multiplicative_year_extended(self, x, return_error=True):
         alpha = x[0]
         beta = x[1]
         gamma_day = x[2]
@@ -220,7 +228,10 @@ class HoltWinters:
         else:
             #with open('variables/year_array.npy', 'wb') as f:
             #    np.save(f, self.year_seasonality, allow_pickle=True)
-            return self.sse(forecast)
+            if return_error:
+                return self.sse(forecast)
+            else:
+                return forecast
 
     def holt_winters_multiplicative_year_extended_predict(self, do_training):
         alpha = 0.9             # 0 <= alpha <= 1
@@ -233,14 +244,19 @@ class HoltWinters:
         bound_on_variables = ((0, 1), (0, 1), (0, 1), (0, 1), (0, 1))
         tolerance = 0.3
         variables_optimized = initial_guess
+        self.is_training = True
         if do_training:
-            self.is_training = True
             variables_optimized = minimize(self.holt_winters_multiplicative_year_extended, initial_guess, bounds=bound_on_variables, tol=tolerance).x
+        residuals = np.array([])
+        smoothed_series = self.holt_winters_multiplicative_year_extended(variables_optimized, False)
+        for i in range(0, len(self.ts)):
+            residuals = np.append(residuals, self.ts[i][0] - smoothed_series[i])
+
         self.is_training = False
-        return self.holt_winters_multiplicative_year_extended(variables_optimized)
+        return self.holt_winters_multiplicative_year_extended(variables_optimized), residuals
 
 
-    def holt_winters_multiplicative(self, x):
+    def holt_winters_multiplicative(self, x, return_error=True):
         alpha = x[0]    # 0 <= alpha <= 1
         beta = x[1]     # 0 <= beta <= 1
         gamma = x[2]    # 0 <= gamma <= 1
@@ -269,7 +285,7 @@ class HoltWinters:
             trend = trend_eq(beta, level, level_prev, trend_prev)
 
             # Make forecasts
-            if (i - day_period_length >= 0):
+            if i > 3 * day_period_length:
                 forecast[i] = (level + trend) * seasonal_component[i - day_period_length]
             else:
                 forecast[i] = level + trend
@@ -293,7 +309,10 @@ class HoltWinters:
                 trend_prev = trend
             return forecast
         else:
-            return self.sse(forecast)
+            if return_error:
+                return self.sse(forecast)
+            else:
+                return forecast
     
     def holt_winters_multiplicative_predict(self, do_training):
         alpha = 0.9     # 0 <= alpha <= 1
@@ -302,15 +321,21 @@ class HoltWinters:
 
         initial_guess = np.array([alpha, beta, gamma])
         bound_on_variables = ((0, 1), (0, 1), (0, 1))
-        tolerance = 0.5
+        tolerance = 0.8
         variables_optimized = initial_guess
-        if do_training:
-            self.is_training = True
-            variables_optimized = minimize(self.holt_winters_multiplicative, initial_guess, bounds=bound_on_variables, tol=tolerance).x
-        self.is_training = False
-        return self.holt_winters_multiplicative(variables_optimized)
 
-    def holt_winters_additive(self, x):
+        self.is_training = True
+        if do_training:
+            variables_optimized = minimize(self.holt_winters_multiplicative, initial_guess, bounds=bound_on_variables, tol=tolerance).x
+        residuals = np.array([])
+        smoothed_series = self.holt_winters_multiplicative(variables_optimized, False)
+        for i in range(0, len(self.ts)):
+            residuals = np.append(residuals, self.ts[i][0] - smoothed_series[i])
+
+        self.is_training = False
+        return self.holt_winters_multiplicative(variables_optimized), residuals
+
+    def holt_winters_additive(self, x, return_error=True):
         alpha = x[0]    # 0 <= alpha <= 1
         beta = x[1]     # 0 <= beta <= 1
         gamma = x[2]    # 0 <= gamma <= 1
@@ -363,7 +388,10 @@ class HoltWinters:
                 trend_prev = trend
             return forecast
         else:
-            return self.sse(forecast)
+            if return_error:
+                return self.sse(forecast)
+            else:
+                return forecast
     
     def holt_winters_additive_predict(self, do_training):
         alpha = 0.9     # 0 <= alpha <= 1
@@ -375,8 +403,13 @@ class HoltWinters:
         tolerance = 0.5
         
         variables_optimized = initial_guess
+        self.is_training = True
         if do_training:
-            self.is_training = True
             variables_optimized = minimize(self.holt_winters_additive, initial_guess, bounds=bound_on_variables, tol=tolerance).x
+        residuals = np.array([])
+        smoothed_series = self.holt_winters_additive(variables_optimized, False)
+        for i in range(0, len(self.ts)):
+            residuals = np.append(residuals, self.ts[i][0] - smoothed_series[i])
+
         self.is_training = False
-        return self.holt_winters_additive(variables_optimized)
+        return self.holt_winters_additive(variables_optimized), residuals
