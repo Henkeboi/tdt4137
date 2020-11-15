@@ -10,9 +10,9 @@ class HoltWinters:
         self.ts = ts
         self.horizon = horizon
         self.is_training = True
-        #self.year_seasonality = np.full(len(self.ts) + self.horizon, math.nan)
-        self.year_seasonality = np.load('variables/year_array.npy')
-        while len(self.year_seasonality) != len(ts) + horizon:
+        self.year_seasonality = np.full(len(self.ts) + self.horizon, math.nan)
+        #self.year_seasonality = np.load('variables/year_array.npy')
+        while len(self.year_seasonality) < len(ts) + horizon:
             self.year_seasonality = np.append(self.year_seasonality, math.nan)
 
     def sse(self, forecast):
@@ -142,6 +142,7 @@ class HoltWinters:
         day_period_length = 24
         week_period_length = 7 * day_period_length
         year_period_length = 52 * week_period_length
+        day_period_length = 1
         if self.is_training:
             forecast = np.full(len(self.ts), math.nan)
         else:

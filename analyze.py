@@ -5,19 +5,33 @@ from matplotlib import pyplot as plt
 from statsmodels.tsa.seasonal import seasonal_decompose
 import datetime
 from scipy import stats
+from statsmodels.graphics.tsaplots import plot_acf
+
+def np_autocorr(x, t):
+    return np.corrcoef(np.array([x[:-t], x[t:]]))
 
 def autocorr(data):
+    series = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, index_col=0)
+    series = series.reindex(index=series.index[::-1])
+    series.index.freq = 'H' # Hourly data.
+    for i in series.index:
+        print(series.Date[i])
+    return
+    p = plot_acf(series, lags=24 * 365)
+    plt.xlabel("Lag value")
+    plt.ylabel("Autocorrelation")
+
+    plt.show()
+    #print("Not box cox:")
     print(data['Values'].autocorr(lag=24))
     print(data['Values'].autocorr(lag=24 * 7))
     print(data['Values'].autocorr(lag=24 * 365))
 
-    ts = np.asarray(data[['Values']].values)
-    ts = ts.flatten()
-    ts = stats.boxcox(ts)[0]
-
-    print(data['Values'].autocorr(lag=24))
-    print(data['Values'].autocorr(lag=24 * 7))
-    print(data['Values'].autocorr(lag=24 * 365))
+    #ts = np.asarray(data[['Values']].values)
+    #ts = ts.flatten()
+    #ts = stats.boxcox(ts)[0]
+    #print("Box cox:")
+    #print(np_autocorr(ts, 24))
 
 def decompose(data):
     df = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, index_col=0, parse_dates=['Category'])[0 : 24*31 * 3]
