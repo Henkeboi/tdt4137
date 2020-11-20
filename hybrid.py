@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
-from keras.layers import Dense, LSTM, Dropout
+from keras.layers import Dense, LSTM, Dropout, GaussianNoise, Activation
 from tensorflow import keras
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -23,9 +23,9 @@ class Hybrid:
         self.horizon = horizon
         self.smoothed_ts = np.full(len(self.ts), math.nan)
         self.lstm = None
-        self.window_size = 20 # Sliding winding for the lstm
         self.seasonal_component = np.full(len(self.ts) + self.horizon, math.nan)
         self.level_prev = self.ts[0]
+        self.scaler = None
 
     def sse(self, forecast):
         assert(len(self.ts) == len(forecast))
@@ -75,16 +75,15 @@ class Hybrid:
             self.level_prev = level
     
     def holt_winters_smooth(self):
-        alpha = 0.9     # 0 <= alpha <= 1
-        gamma = 0.9      # 0 <= beta <= 1
+        alpha = 0.2     # 0 <= alpha <= 1
+        gamma = 0.2      # 0 <= beta <= 1
         self.is_training = True
         self.holt_winters_multiplicative([alpha, gamma], False)
-        self.smoothed_ts.reshape(self.smoothed_ts.shape[0], 1) 
-
+        self.smoothed_ts = self.smoothed_ts.reshape(self.smoothed_ts.shape[0], 1) 
 
     def predict(self):
-        alpha = 0.9     # 0 <= alpha <= 1
-        gamma = 0.9      # 0 <= beta <= 1
+        alpha = 0.2     # 0 <= alpha <= 1
+        gamma = 0.2      # 0 <= beta <= 1
         day_period_length = 24
 
         forecast = np.full(self.horizon, math.nan)
@@ -96,7 +95,7 @@ class Hybrid:
                 level = level_eq(alpha, self.ts[0][-1], self.level_prev, self.seasonal_component[i - day_period_length])
                 lstm_val = self.lstm_step()
                 forecast[i - len(self.ts)] = level * self.seasonal_component[i - day_period_length] * lstm_val
-                smoothed_val = self.ts[0][-1] / forecast[i - len(self.ts)]
+                smoothed_val = self.ts[0][-1] / (level * self.seasonal_component[i - day_period_length])
                 self.smoothed_ts = np.append(self.smoothed_ts, smoothed_val)
                 self.seasonal_component[i] = season_eq(gamma, self.ts[0][-1], self.level_prev, self.seasonal_component[i - day_period_length])
             else:
@@ -104,97 +103,73 @@ class Hybrid:
                 lstm_val = self.lstm_step()
                 forecast[i - len(self.ts)] = level * self.seasonal_component[i - day_period_length] * lstm_val
                 self.seasonal_component[i] = season_eq(gamma, forecast[i - len(self.ts)], self.level_prev, self.seasonal_component[i - day_period_length])
-                self.smoothed_ts = np.append(self.smoothed_ts, lstm_val)
+                self.smoothed_ts = np.append(self.smoothed_ts, self.ts[0][-1] / (level * self.seasonal_component[i - day_period_length]) )
             self.level_prev = level
         return forecast
 
     def lstm_step(self):
-        lstm_data = self.smoothed_ts[-100:]
-        lstm_data = lstm_data.reshape(100, 1)
+        x = self.smoothed_ts[-1] 
+        x = x.reshape(1, 1, 1)
+        prediction = self.lstm.predict(x, batch_size=1)
+        return prediction.flatten()[0]
 
-        training_dataset_length = len(lstm_data) - 1
-        scaler = MinMaxScaler(feature_range=(0, 1)) 
-        scaled_data = scaler.fit_transform(lstm_data)
-         
-        lstm_data, _ = self.get_test_vectors(scaled_data, training_dataset_length, lstm_data, self.window_size)
-        prediction = self.lstm.predict(lstm_data) 
-        prediction = scaler.inverse_transform(prediction)
-        prediction = prediction.flatten()
-        return prediction
+    def init_lstm(self):
+        self.lstm.reset_states()
+        for i in range(0, 7):
+            x = self.smoothed_ts[-i] 
+            x = x.reshape(1, 1, 1)
+            prediction = self.lstm.predict(x, batch_size=1)
 
     def forecast(self):
         self.holt_winters_smooth()
         self.build_and_train_model()
+        self.init_lstm()
         return self.predict()
 
     def build_and_train_model(self):
-        features = self.ts
-        training_dataset_length = math.ceil(len(features) * .75)
-        scaler = MinMaxScaler(feature_range=(0, 1)) 
-        scaled_data = scaler.fit_transform(features)
-        training_data = scaled_data[0 : training_dataset_length, :]
+        #self.scaler = MinMaxScaler(feature_range=(0, 1)) 
+        #df = pd.DataFrame(self.scaler.fit_transform(self.smoothed_ts[:]))
+        df = pd.DataFrame(self.smoothed_ts[1000:])
+        df = pd.concat([df, df.shift(1)], axis=1)
+        df.dropna(inplace=True) # Remove NaN
+        length = 1000
+        x_train, y_train = df.values[0:length, 0], df.values[0:length, 1]
+        x_train = x_train.reshape(len(x_train), 1, 1) # [Samples, Time steps, Features]
 
-        x_training, y_training = self.get_training_vectors(training_data, self.window_size)
-
-        # Initialising the RNN
+        batches = 10
         model = Sequential()
-        model.add(LSTM(units = 50, return_sequences = True, input_shape = (x_training.shape[1], 1)))
+        model.add(LSTM(units=50, batch_input_shape=(batches, x_train.shape[1], x_train.shape[2]), stateful=True))
         model.add(Dropout(0.2))
-
-        # Adding a second LSTM layer and Dropout layer
-        model.add(LSTM(units = 50, return_sequences = True))
-        model.add(Dropout(0.2))
-
-        # Adding a third LSTM layer and Dropout layer
-        model.add(LSTM(units = 50, return_sequences = True))
-        model.add(Dropout(0.2))
-
-        # Adding a fourth LSTM layer and and Dropout layer
-        model.add(LSTM(units = 50))
-        model.add(Dropout(0.2))
-
-        # Output layer
+        #model.add(GaussianNoise(0.1))
+        #model.add(Activation('relu'))
         model.add(Dense(units=1))
-
         model.compile(optimizer='adam', loss='mean_squared_error')
-        model.fit(x_training, y_training, epochs=10, batch_size=200)
-        self.lstm = model
 
-    def get_training_vectors(self, training_data, window_size):
-        x_training = []
-        y_training = []
+        # Train
+        for i in range(30):
+            model.fit(x_train, y_train, epochs=1, batch_size=batches, shuffle=False)
+            model.reset_states()
 
-        for i in range(window_size, len(training_data)):
-            x_training.append(training_data[i - window_size : i, 0])
-            y_training.append(training_data[i, 0])
-
-        x_training, y_training = np.array(x_training), np.array(y_training)
-
-        x_training = np.reshape(x_training, (x_training.shape[0], x_training.shape[1], 1))
-        return x_training, y_training
-
-    def get_test_vectors(self, scaled_data, training_dataset_length, features, window_size):
-        test_data = scaled_data[training_dataset_length - window_size:, :]
-
-        x_test = []
-        y_test = features[training_dataset_length :, : ] 
-
-        for i in range(window_size, len(test_data)):
-            x_test.append(test_data[i - window_size : i, 0])
-
-        x_test = np.array(x_test)
-        x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
-        return x_test, y_test
-
+        batches = 1 # We are doing one step prediction with the new lstm model.
+        self.lstm = Sequential()
+        self.lstm.add(LSTM(units=50, batch_input_shape=(batches, x_train.shape[1], x_train.shape[2]), stateful=True))
+        self.lstm.add(Dropout(0.2))
+        #self.lstm.add(GaussianNoise(0.1))
+        #self.lstm.add(Activation('relu'))
+        self.lstm.add(Dense(units=1))
+        self.lstm.set_weights(model.get_weights())
+        self.lstm.compile(optimizer='adam', loss='mean_squared_error')
+        
 def main():
     data = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, infer_datetime_format=True, parse_dates=[0], index_col=[0])
     data = data.reindex(index=data.index[::-1])
     data.index.freq = 'H' # Hourly data.
-    horizon = 24
-    training_set = data.loc['2016-01-1' : '2016-03-31'].to_numpy()
-    validation_set = data.loc['2016-04-1' : '2016-04-10'].to_numpy()
+    training_set = data.loc['2019-01-1' : '2019-03-31'].to_numpy()
+    validation_set = data.loc['2019-04-1' : '2019-04-7'].to_numpy()
     hybrid = Hybrid(training_set, len(validation_set))
     forecast = hybrid.forecast()
+    rmse = np.sqrt(np.mean(((forecast - validation_set) ** 2)))
+    print(rmse)
     
     sns.set(rc={'figure.figsize':(16, 4)})
     sns.lineplot(data=validation_set, color="b")

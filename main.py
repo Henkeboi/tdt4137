@@ -158,7 +158,6 @@ def main():
     #experiment_1()
     experiment_2()
 
-
     return
     data = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, infer_datetime_format=True, parse_dates=[0], index_col=[0])
     data = data.reindex(index=data.index[::-1])
