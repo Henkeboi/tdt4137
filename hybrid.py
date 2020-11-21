@@ -127,8 +127,6 @@ class Hybrid:
         return self.predict()
 
     def build_and_train_model(self):
-        #self.scaler = MinMaxScaler(feature_range=(0, 1)) 
-        #df = pd.DataFrame(self.scaler.fit_transform(self.smoothed_ts[:]))
         df = pd.DataFrame(self.smoothed_ts[1000:])
         df = pd.concat([df, df.shift(1)], axis=1)
         df.dropna(inplace=True) # Remove NaN
@@ -140,22 +138,18 @@ class Hybrid:
         model = Sequential()
         model.add(LSTM(units=50, batch_input_shape=(batches, x_train.shape[1], x_train.shape[2]), stateful=True))
         model.add(Dropout(0.2))
-        #model.add(GaussianNoise(0.1))
-        #model.add(Activation('relu'))
         model.add(Dense(units=1))
         model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train
         for i in range(30):
-            model.fit(x_train, y_train, epochs=1, batch_size=batches, shuffle=False)
+            model.fit(x_train, y_train, epochs=1, batch_size=batches, shuffle=False, verbose=0)
             model.reset_states()
 
         batches = 1 # We are doing one step prediction with the new lstm model.
         self.lstm = Sequential()
         self.lstm.add(LSTM(units=50, batch_input_shape=(batches, x_train.shape[1], x_train.shape[2]), stateful=True))
         self.lstm.add(Dropout(0.2))
-        #self.lstm.add(GaussianNoise(0.1))
-        #self.lstm.add(Activation('relu'))
         self.lstm.add(Dense(units=1))
         self.lstm.set_weights(model.get_weights())
         self.lstm.compile(optimizer='adam', loss='mean_squared_error')

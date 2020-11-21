@@ -8,6 +8,7 @@ from scipy import stats
 
 from holt_winters import HoltWinters
 from holt_winters_without_leap_year import HoltWintersWithoutLeapYear
+from hybrid import Hybrid
 
 def sse(ts, forecast):
     assert(len(ts) == len(forecast))
@@ -38,53 +39,7 @@ def mase(ts, forecast, ts_index_start): # Seasonal version
 def autocorr(x, t):
     return np.corrcoef(np.array([x[:-t], x[t:]]))
 
-def experiment_1():
-    data = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, infer_datetime_format=True, parse_dates=[0], index_col=[0])
-    data = data.reindex(index=data.index[::-1])
-    data.index.freq = 'H' # Hourly data.
-    horizon = 24
-    
-    time_series = [data.loc['2015-07-1' : '2015-10-31'].to_numpy() 
-        ,data.loc['2015-11-1' : '2016-02-29'].to_numpy()
-        ,data.loc['2016-03-1' : '2016-06-30'].to_numpy()
-        ,data.loc['2016-07-1' : '2016-10-30'].to_numpy()
-        ,data.loc['2016-11-1' : '2017-02-28'].to_numpy()
-        ,data.loc['2017-03-1' : '2017-06-30'].to_numpy()
-        ,data.loc['2017-07-1' : '2017-10-31'].to_numpy()
-        ,data.loc['2017-11-1' : '2018-02-28'].to_numpy()
-        ,data.loc['2018-03-1' : '2018-06-28'].to_numpy()
-        ,data.loc['2018-07-1' : '2018-10-31'].to_numpy()
-        ,data.loc['2018-11-1' : '2019-02-28'].to_numpy()
-        ,data.loc['2019-03-1' : '2019-06-28'].to_numpy()
-        ,data.loc['2019-07-1' : '2019-10-31'].to_numpy()
-        ,data.loc['2019-11-1' : '2020-02-28'].to_numpy()
-        ,data.loc['2020-03-1' : '2020-06-28'].to_numpy()
-        ,data.loc['2020-07-1' : '2020-10-31'].to_numpy()]
-
-    i = 0
-    sum_mae_error_add = 0
-    sum_mae_error_mul = 0
-    sum_mae_error_mse = 0
-    do_training = False
-    for ts in time_series:
-        hw = HoltWinters(ts[:-horizon], horizon)
-        forecast_additive = hw.holt_winters_additive_predict(do_training)
-        forecast_multiplicative = hw.holt_winters_multiplicative_predict(do_training)
-        forecast_week_extended = hw.holt_winters_multiplicative_week_extended_predict(do_training)
-
-        print("Mean squared error add: " + str(mae(ts[-horizon:], forecast_additive)))
-        print("Mean squared error mul: " + str(mae(ts[-horizon:], forecast_multiplicative)))
-        print("Mean squared error mse: " + str(mae(ts[-horizon:], forecast_week_extended)))
-
-        sum_mae_error_add = sum_mae_error_add + mae(ts[-horizon:], forecast_additive)
-        sum_mae_error_mul = sum_mae_error_mul + mae(ts[-horizon:], forecast_multiplicative)
-        sum_mae_error_mse = sum_mae_error_mse + mae(ts[-horizon:], forecast_week_extended)
-
-    print(sum_mae_error_add)
-    print(sum_mae_error_mul)
-    print(sum_mae_error_mse)
-
-def experiment_2():
+def cross_validation():
     data = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, infer_datetime_format=True, parse_dates=[0], index_col=[0])
     data = data.reindex(index=data.index[::-1])
     data.index.freq = 'H' # Hourly data.
@@ -93,90 +48,87 @@ def experiment_2():
     data_without_leap_year = data_without_leap_year.reindex(index=data_without_leap_year.index[::-1])
 
     horizon = 7 * 24
-    time_series = [data.loc['2015-01-01' : '2019-10-01'].to_numpy()
-        ,data.loc['2016-01-01' : '2019-10-02'].to_numpy()
-        ,data.loc['2016-01-01' : '2019-10-03'].to_numpy()
-        ,data.loc['2016-01-01' : '2019-10-04'].to_numpy()
-        ,data.loc['2016-01-01' : '2019-10-05'].to_numpy()
-        ,data.loc['2016-01-01' : '2019-10-06'].to_numpy()]
-    time_series_without_leap_year = [data_without_leap_year.loc['2015-01-01' : '2019-10-01'].to_numpy()
-        ,data_without_leap_year.loc['2016-01-01' : '2019-10-02'].to_numpy()
-        ,data_without_leap_year.loc['2016-01-01' : '2019-10-03'].to_numpy()
-        ,data_without_leap_year.loc['2016-01-01' : '2019-10-04'].to_numpy()
-        ,data_without_leap_year.loc['2016-01-01' : '2019-10-05'].to_numpy()
-        ,data_without_leap_year.loc['2016-01-01' : '2019-10-06'].to_numpy()]
+    time_series = [data.loc['2016-01-01' : '2019-08-01'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-08-07'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-08-14'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-08-21'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-08-28'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-09-07'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-10-14'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-10-21'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-11-01'].to_numpy()
+        ,data.loc['2016-01-01' : '2019-11-07'].to_numpy()]
+
+    time_series_without_leap_year = [data_without_leap_year.loc['2016-01-01' : '2019-08-01'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-08-07'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-08-14'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-08-21'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-08-28'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-09-07'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-10-14'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-10-21'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-11-01'].to_numpy()
+        ,data_without_leap_year.loc['2016-01-01' : '2019-11-07'].to_numpy()]
 
     sum_mae_error_add = 0
     sum_mae_error_mul = 0
     sum_mae_error_week = 0
     sum_mae_error_year = 0
     sum_mae_error_year_without_leap_year = 0
+    sum_mae_error_hybrid = 0
 
-    do_plots = False
     do_training = False
     for i in range(0, len(time_series)):
-        #ts = time_series[i]
-        #hw = HoltWinters(ts[:-horizon], horizon)
-        #forecast_additive, residuals_additive = hw.holt_winters_additive_predict(do_training)
-        #forecast_multiplicative, residuals_multiplicative = hw.holt_winters_multiplicative_predict(do_training)
-        #forecast_week_extended, residuals_week = hw.holt_winters_multiplicative_week_extended_predict(do_training)
-        #forecast_year_extended, residuals_year = hw.holt_winters_multiplicative_year_extended_predict(do_training)
+        print("Iteration: " + str(i))
+
+        ts = time_series[i]
+        hw = HoltWinters(ts[:-horizon], horizon)
+
+        forecast_additive, residuals_additive = hw.holt_winters_additive_predict(do_training)
+        mae_error_add = mae(ts[-horizon:], forecast_additive)
+        sum_mae_error_add = sum_mae_error_add + mae_error_add 
+        print("Additive:" + str(mae_error_add))
+
+        forecast_multiplicative, residuals_multiplicative = hw.holt_winters_multiplicative_predict(do_training)
+        mae_error_mul = mae(ts[-horizon:], forecast_multiplicative)
+        sum_mae_error_mul = sum_mae_error_mul + mae_error_mul
+        print("Multiplicative:" + str(mae_error_mul))
+
+        forecast_week_extended, residuals_week = hw.holt_winters_multiplicative_week_extended_predict(do_training)
+        mae_error_week = mae(ts[-horizon:], forecast_week_extended)
+        sum_mae_error_week = sum_mae_error_week + mae_error_week
+        print("Extended week:" + str(mae_error_week))
+
+        forecast_year_extended, residuals_year = hw.holt_winters_multiplicative_year_extended_predict(do_training)
+        mae_error_year = mae(ts[-horizon:], forecast_year_extended)
+        sum_mae_error_year = sum_mae_error_year + mae_error_year
+        print("Extended year:" + str(mae_error_year))
 
         ts_without_leap_year = time_series_without_leap_year[i]
         hw_without_leap_year = HoltWintersWithoutLeapYear(ts_without_leap_year[:-horizon], horizon)
         forecast_year_extended_without_leap_year, residuals_year_without_leap_year = hw_without_leap_year.holt_winters_multiplicative_year_extended_predict(do_training)
+        mae_error_year_without_leap_year = mae(ts_without_leap_year[-horizon:], forecast_year_extended_without_leap_year)
+        sum_mae_error_year_without_leap_year = sum_mae_error_year_without_leap_year + mae_error_year_without_leap_year
+        print("Extended year without leap:" + str(mae_error_year_without_leap_year))
 
-        #sum_mae_error_add = sum_mae_error_add + mae(ts[-horizon:], forecast_additive)
-        #sum_mae_error_mul = sum_mae_error_mul + mae(ts[-horizon:], forecast_multiplicative)
-        #sum_mae_error_week = sum_mae_error_week + mae(ts[-horizon:], forecast_week_extended)
-        #sum_mae_error_year = sum_mae_error_year + mae(ts[-horizon:], forecast_year_extended)
-        sum_mae_error_year_without_leap_year = sum_mae_error_year_without_leap_year + mae(ts_without_leap_year[-horizon:], forecast_year_extended_without_leap_year)
+        hybrid = Hybrid(ts[:-horizon], horizon)
+        forecast_hybrid = hybrid.forecast()
+        mae_error_hybrid = mae(ts[-horizon:], forecast_hybrid)
+        sum_mae_error_hybrid = sum_mae_error_hybrid + mae_error_hybrid
+        print("Hybrid:" + str(mae_error_hybrid))
+
          
-        #print(autocorr(residuals_additive, 24*7))
-        #print(autocorr(residuals_multiplicative, 24*7))
-        #print(autocorr(residuals_week, 24*7))
-        #print(autocorr(residuals_year, 24*7))
-        #print(autocorr(residuals_year_without_leap_year, 24*7))
-
-        if do_plots:
-            x = np.arange(0, horizon, 1)
-            plt.plot(x, ts[-horizon:], 'r')
-            plt.plot(x, forecast_additive, 'g')
-            plt.plot(x, forecast_multiplicative, 'b')
-            plt.plot(x, forecast_week_extended, 'y')
-            plt.plot(x, forecast_year_extended, 'o')
-            plt.show()
-
-    #print(sum_mae_error_add)
-    #print(sum_mae_error_mul)
-    #print(sum_mae_error_week)
-    #print(sum_mae_error_year)
-    print(sum_mae_error_year_without_leap_year)
-
+    print("Sum additive:" + str(sum_mae_error_add))
+    print("Sum multiplicative:" + str(sum_mae_error_mul))
+    print("Sum extended week:" + str(sum_mae_error_week))
+    print("Sum extended year:" + str(sum_mae_error_year))
+    print("Sum extended year without leap:" + str(sum_mae_error_year_without_leap_year))
+    print("Sum hybrid:" + str(sum_mae_error_hybrid))
 
 def main():
-    #experiment_1()
-    experiment_2()
+    cross_validation()
 
-    return
-    data = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, infer_datetime_format=True, parse_dates=[0], index_col=[0])
-    data = data.reindex(index=data.index[::-1])
-    data.index.freq = 'H' # Hourly data.
-
-    horizon = 10
-    do_training = False
-    time_series = data.loc['2016-01-01' : '2017-10-01'].to_numpy()
-    ts = np.asarray(time_series)
-    ts = ts.flatten()
-    ts = stats.boxcox(ts)
-    hw = HoltWinters(ts[:-horizon], horizon)
-    forecast_additive, residuals_additive = hw.holt_winters_additive_predict(do_training) # RESIDUAL FOUND IN BOX COX
-    print("A")
-    forecast_additive = stats.boxcox_inv(forecast_additive)
     
-    
-    
-
-
+   
 if __name__ == '__main__':
     main()

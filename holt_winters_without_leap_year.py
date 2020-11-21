@@ -11,7 +11,7 @@ class HoltWintersWithoutLeapYear:
         self.horizon = horizon
         self.is_training = True
         self.year_seasonality = np.full(len(self.ts) + self.horizon, math.nan)
-        #self.year_seasonality = np.load('variables/year_array_without_leap_year.npy')
+        self.year_seasonality = np.load('variables/year_array_without_leap_year.npy')
         while len(self.year_seasonality) < len(ts) + horizon:
             self.year_seasonality = np.append(self.year_seasonality, math.nan)
 
@@ -24,6 +24,7 @@ class HoltWintersWithoutLeapYear:
         return np.sum(error)
 
     def moving_average(self, index, index_range):
+        index_range = int(index_range)
         avg = 0
         i = index - index_range
         if i < 0:
@@ -78,25 +79,25 @@ class HoltWintersWithoutLeapYear:
                 week_seasonality[i] = seasonality_eq(gamma_week, self.ts[i], week_seasonality[i - week_period_length], level, M_0)
                 if math.isnan(self.year_seasonality[i]):
                     self.year_seasonality[i] =  \
-                        (self.ts[i] / self.moving_average(i, year_period_length) + self.ts[i + year_period_length] / self.moving_average(i + year_period_length, year_period_length)) / 2
+                        (self.ts[i] / self.moving_average(i, year_period_length / 2) + self.ts[i + year_period_length] / self.moving_average(i + year_period_length, year_period_length / 2)) / 2
             elif i > 3 * day_period_length:
                 M_0 = day_seasonality[i - day_period_length] 
                 day_seasonality[i] = seasonality_eq(gamma_day, self.ts[i], day_seasonality[i - day_period_length], level, M_0)
                 week_seasonality[i] = \
-                    (self.ts[i] / self.moving_average(i, week_period_length) + self.ts[i + week_period_length] / self.moving_average(i + week_period_length, week_period_length)) / 2
+                    (self.ts[i] / self.moving_average(i, week_period_length / 2) + self.ts[i + week_period_length] / self.moving_average(i + week_period_length, week_period_length / 2)) / 2
                 if math.isnan(self.year_seasonality[i]):
                     self.year_seasonality[i] =  \
-                        (self.ts[i] / self.moving_average(i, year_period_length) + self.ts[i + year_period_length] / self.moving_average(i + year_period_length, year_period_length)) / 2
+                        (self.ts[i] / self.moving_average(i, year_period_length / 2) + self.ts[i + year_period_length] / self.moving_average(i + year_period_length, year_period_length / 2)) / 2
             else:
                 level = level_initial
                 trend = trend_initial
                 day_seasonality[i] = \
-                    (self.ts[i] / self.moving_average(i, day_period_length) + self.ts[i + day_period_length] / self.moving_average(i + day_period_length, day_period_length)) / 2
+                    (self.ts[i] / self.moving_average(i, day_period_length / 2) + self.ts[i + day_period_length] / self.moving_average(i + day_period_length, day_period_length / 2)) / 2
                 week_seasonality[i] = \
-                    (self.ts[i] / self.moving_average(i, week_period_length) + self.ts[i + week_period_length] / self.moving_average(i + week_period_length, week_period_length)) / 2
+                    (self.ts[i] / self.moving_average(i, week_period_length / 2) + self.ts[i + week_period_length] / self.moving_average(i + week_period_length, week_period_length / 2)) / 2
                 if math.isnan(self.year_seasonality[i]):
                     self.year_seasonality[i] =  \
-                        (self.ts[i] / self.moving_average(i, year_period_length) + self.ts[i + year_period_length] / self.moving_average(i + year_period_length, year_period_length)) / 2
+                        (self.ts[i] / self.moving_average(i, year_period_length / 2) + self.ts[i + year_period_length] / self.moving_average(i + year_period_length, year_period_length / 2)) / 2
      
             # Smooth 
             if i > 3 * year_period_length:
@@ -130,8 +131,8 @@ class HoltWintersWithoutLeapYear:
                 self.year_seasonality[i] = seasonality_eq(gamma_year, forecast[i - len(self.ts)], self.year_seasonality[i - year_period_length], level, M_0)
             return forecast
         else:
-            with open('variables/year_array_without_leap_year.npy', 'wb') as f:
-                np.save(f, self.year_seasonality, allow_pickle=True)
+            #with open('variables/year_array_without_leap_year.npy', 'wb') as f:
+            #    np.save(f, self.year_seasonality, allow_pickle=True)
             if return_error:
                 return self.sse(forecast)
             else:
