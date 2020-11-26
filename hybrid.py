@@ -25,7 +25,6 @@ class Hybrid:
         self.lstm = None
         self.seasonal_component = np.full(len(self.ts) + self.horizon, math.nan)
         self.level_prev = self.ts[0]
-        self.scaler = None
 
     def sse(self, forecast):
         assert(len(self.ts) == len(forecast))
@@ -126,30 +125,62 @@ class Hybrid:
         self.init_lstm()
         return self.predict()
 
+    def get_residuals(self):
+        self.lstm.reset_states()
+
+        alpha = 0.2     # 0 <= alpha <= 1
+        gamma = 0.2      # 0 <= beta <= 1
+        day_period_length = 24
+
+        residuals = np.full(len(self.ts), math.nan)
+        level_eq = lambda alpha, observation, level_prev, season_prev : alpha * observation / season_prev + (1 - alpha) * level_prev
+        season_eq = lambda gamma, observation, level_prev, season_prev : gamma * observation / level_prev + (1 - gamma) * season_prev
+
+        for i in range(len(self.ts) - 24 * 7 * 52, len(self.ts)):
+            print(i)
+            if i == len(self.ts):
+                level = level_eq(alpha, self.ts[-1], self.level_prev, self.seasonal_component[i - day_period_length])
+                lstm_val = self.lstm_step()
+                residuals[i] = self.ts[i] - level * self.seasonal_component[i - day_period_length] * lstm_val
+                smoothed_val = self.ts[i] / (level * self.seasonal_component[i - day_period_length])
+                self.smoothed_ts = np.append(self.smoothed_ts, smoothed_val)
+                self.seasonal_component[i] = season_eq(gamma, self.ts[-1], self.level_prev, self.seasonal_component[i - day_period_length])
+            else:
+                level = level_eq(alpha, -residuals[i - 1] + self.ts[i - 1], self.level_prev, self.seasonal_component[i - day_period_length])
+                lstm_val = self.lstm_step()
+                residuals[i] = self.ts[i] - level * self.seasonal_component[i - day_period_length] * lstm_val
+                self.seasonal_component[i] = season_eq(gamma, residuals[i], self.level_prev, self.seasonal_component[i - day_period_length])
+                self.smoothed_ts = np.append(self.smoothed_ts, self.ts[-1] / (level * self.seasonal_component[i - day_period_length]) )
+            self.level_prev = level
+
+        return residuals
+
     def build_and_train_model(self):
         df = pd.DataFrame(self.smoothed_ts[1000:])
         df = pd.concat([df, df.shift(1)], axis=1)
         df.dropna(inplace=True) # Remove NaN
-        length = 1000
+        #length = int(1680 / 2)
+        length = int(24 * 7 * 52 * 2)
         x_train, y_train = df.values[0:length, 0], df.values[0:length, 1]
         x_train = x_train.reshape(len(x_train), 1, 1) # [Samples, Time steps, Features]
 
-        batches = 10
+        batches = 24 * 7
         model = Sequential()
         model.add(LSTM(units=50, batch_input_shape=(batches, x_train.shape[1], x_train.shape[2]), stateful=True))
-        model.add(Dropout(0.2))
+        model.add(Dropout(0.4))
         model.add(Dense(units=1))
         model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train
-        for i in range(30):
+        for i in range(20):
             model.fit(x_train, y_train, epochs=1, batch_size=batches, shuffle=False, verbose=0)
             model.reset_states()
 
-        batches = 1 # We are doing one step prediction with the new lstm model.
+        # We need a new model with a batch size of 1
+        batches = 1 
         self.lstm = Sequential()
         self.lstm.add(LSTM(units=50, batch_input_shape=(batches, x_train.shape[1], x_train.shape[2]), stateful=True))
-        self.lstm.add(Dropout(0.2))
+        self.lstm.add(Dropout(0.4))
         self.lstm.add(Dense(units=1))
         self.lstm.set_weights(model.get_weights())
         self.lstm.compile(optimizer='adam', loss='mean_squared_error')

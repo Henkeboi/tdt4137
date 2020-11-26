@@ -4,6 +4,8 @@ import numpy as np
 import math
 import copy
 from scipy.optimize import minimize
+import seaborn as sns
+from sklearn.metrics import mean_squared_error
 
 class HoltWinters:
     def __init__(self, ts, horizon):
@@ -113,10 +115,10 @@ class HoltWinters:
                 return forecast
 
     def holt_winters_multiplicative_week_extended_predict(self, do_training):
-        alpha = 0.9             # 0 <= alpha <= 1
-        beta = 0.0001           # 0 <= beta <= 1
+        alpha = 0.8             # 0 <= alpha <= 1
+        beta = 0.01           # 0 <= beta <= 1
         gamma_day = 0.9         # 0 <= gamma_day <= 1
-        gamma_week = 0.7        # 0 <= gamma_week <= 1
+        gamma_week = 0.8        # 0 <= gamma_week <= 1
 
         initial_guess = np.array([alpha, beta, gamma_day, gamma_week])
         bound_on_variables = ((0, 1), (0, 1), (0, 1), (0, 1))
@@ -236,15 +238,15 @@ class HoltWinters:
                 return forecast
 
     def holt_winters_multiplicative_year_extended_predict(self, do_training):
-        alpha = 0.9             # 0 <= alpha <= 1
-        beta = 0.0001           # 0 <= beta <= 1
-        gamma_day = 0.9         # 0 <= gamma_day <= 1
-        gamma_week = 0.7        # 0 <= gamma_week <= 1
-        gamma_year = 0.7        # 0 <= gamma_year <= 1
+        alpha = 0.7             # 0 <= alpha <= 1
+        beta = 0.01           # 0 <= beta <= 1
+        gamma_day = 0.7         # 0 <= gamma_day <= 1
+        gamma_week = 0.9        # 0 <= gamma_week <= 1
+        gamma_year = 0.99        # 0 <= gamma_year <= 1
 
         initial_guess = np.array([alpha, beta, gamma_day, gamma_week, gamma_year])
         bound_on_variables = ((0, 1), (0, 1), (0, 1), (0, 1), (0, 1))
-        tolerance = 0.3
+        tolerance = 0.7
         variables_optimized = initial_guess
         self.is_training = True
         if do_training:
@@ -317,9 +319,9 @@ class HoltWinters:
                 return forecast
     
     def holt_winters_multiplicative_predict(self, do_training):
-        alpha = 0.9     # 0 <= alpha <= 1
-        beta = 0.1      # 0 <= beta <= 1
-        gamma = 0.05     # 0 <= gamma <= 1
+        alpha = 0.95     # 0 <= alpha <= 1
+        beta = 0.5      # 0 <= beta <= 1
+        gamma = 0.001    # 0 <= gamma <= 1 - alpha
 
         initial_guess = np.array([alpha, beta, gamma])
         bound_on_variables = ((0, 1), (0, 1), (0, 1))
@@ -396,9 +398,9 @@ class HoltWinters:
                 return forecast
     
     def holt_winters_additive_predict(self, do_training):
-        alpha = 0.9     # 0 <= alpha <= 1
-        beta = 0.1      # 0 <= beta <= 1
-        gamma = 0.01     # 0 <= gamma <= 1 - alpha
+        alpha = 0.8     # 0 <= alpha <= 1
+        beta = 0.7      # 0 <= beta <= 1
+        gamma = 0.005     # 0 <= gamma <= 1 - alpha
 
         initial_guess = np.array([alpha, beta, gamma])
         bound_on_variables = ((0, 1), (0, 1), (0, 1 - alpha))
@@ -415,3 +417,27 @@ class HoltWinters:
 
         self.is_training = False
         return self.holt_winters_additive(variables_optimized), residuals
+
+def sse(ts, forecast):
+    assert(len(ts) == len(forecast))
+
+    return math.sqrt(mean_squared_error(ts, forecast))
+
+if __name__ == '__main__':
+    data = pd.read_csv('data/Demand_for_California_hourly_UTC_time.csv', header=0, infer_datetime_format=True, parse_dates=[0], index_col=[0])
+    data = data.reindex(index=data.index[::-1])
+    data.index.freq = 'H' # Hourly data.
+    horizon =  7 * 24
+    ts = data.loc['2016-01-01' : '2019-03-01'].to_numpy() 
+
+    hw = HoltWinters(ts[:-horizon], horizon)
+    #forecast = hw.holt_winters_additive_predict(False)[0]
+    #forecast = hw.holt_winters_multiplicative_predict(False)[0]
+    forecast = hw.holt_winters_multiplicative_week_extended_predict(False)[0]
+    #forecast = hw.holt_winters_multiplicative_year_extended_predict(False)[0]
+    print(sse(ts[-horizon:], forecast))
+
+    x = np.linspace(0, horizon, horizon)
+    sns.lineplot(x, forecast, color='b')
+    sns.lineplot(x, ts[-horizon:].flatten(), color='r') 
+    plt.show()
